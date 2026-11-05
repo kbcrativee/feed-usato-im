@@ -117,6 +117,12 @@ def address(o):
             "region": "Toscana", "postal_code": CAP.get(seller.get("addressLocality", ""), ""), "country": "IT"}
 
 
+def fascia(price):
+    """Fascia di prezzo (decisa il 2026-11-05 dalle vendite usato: 74% sotto i 20.000 €, quasi nulla oltre i 40.000 €)."""
+    p = int(price)
+    return "sotto 8k" if p < 8000 else "8-40k" if p <= 40000 else "oltre 40k"
+
+
 def body_style(slug, title):
     """Tipo di carrozzeria dedotto dal modello (il sito non lo mette nei dati strutturati): 'OTHER' se incerto."""
     if "touring" in title.lower() or slug in WAGON:
@@ -170,6 +176,9 @@ def row(o):
         "vin": o.get("vehicleIdentificationNumber", ""),
         "address": json.dumps(address(o), ensure_ascii=False),
         "availability": "AVAILABLE",
+        # Etichette per creare gli insiemi di prodotti in Meta (il filtro per prezzo non esiste nei cataloghi veicoli)
+        "custom_label_0": fascia(price),
+        "custom_label_1": "JLR" if make in ("Land Rover", "Jaguar") else "altre marche",
     }
 
 
