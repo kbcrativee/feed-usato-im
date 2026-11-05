@@ -9,7 +9,7 @@ nessun account di terzi e non scrive nulla sul sito. Uso:
 Senza argomento scrive "05 Automazioni/feed-usato-meta.csv" (dal vault). Pensato per girare ogni
 notte (vedi nota "Campagna usato funnel 15 euro - piano"). Solo libreria standard.
 """
-import csv, html, json, re, sys, time, urllib.request
+import csv, html, json, re, sys, time, urllib.error, urllib.request
 from collections import Counter
 from pathlib import Path
 
@@ -24,22 +24,26 @@ SALOON = {"s-type", "xf", "xe", "serie-3"}
 SPECIAL = {"e-pace": "E-Pace", "f-pace": "F-Pace", "f-type": "F-Type", "ehs": "EHS", "zs": "ZS", "hs": "HS"}
 
 
-def get(url, tries=3):
+def get(url, tries=5):
+    """Scarica una pagina con una pausa fra una richiesta e l'altra e nuovi tentativi se il sito risponde 429/5xx
+    (dagli indirizzi di GitHub il sito può rallentare: il 2026-11-05 la prima corsa ha preso un 429)."""
+    time.sleep(2)
     for i in range(tries):
         try:
             return urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=40).read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            if i == tries - 1 or e.code not in (429, 500, 502, 503, 504):
+                raise
+            time.sleep(20 * (i + 1))
         except Exception:
             if i == tries - 1:
                 raise
-            time.sleep(3)
+            time.sleep(5)
 
 
-ROOT = "https://www.internationalmotors.it/auto/usate/"
-
-
-def read_page(url, seen):
+def vehicles_in(html_text, seen):
     n = 0
-    for block in re.findall(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', get(url), re.S):
+    for block in re.findall(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', html_text, re.S):
         try:
             data = json.loads(block)
         except ValueError:
@@ -57,10 +61,7 @@ def read_page(url, seen):
     return n
 
 
-def reported_total():
-    txt = re.sub(r"<[^>]+>", " ", get(ROOT))
-    m = re.search(r"(\d+)\s+risultati trovati", txt)
-    return int(m.group(1)) if m else None
+ROOT = "https://www.internationalmotors.it/auto/usate/"
 
 
 def vehicles():
@@ -68,10 +69,12 @@ def vehicles():
     la seconda: verificato il 2026-11-05). Si legge quindi l'indirizzo base e poi ?page=1,2,3... fino a
     una pagina vuota, deduplicando per link, e si confronta con il totale dichiarato dal sito."""
     seen = {}
-    total = reported_total()
-    read_page(ROOT, seen)
+    root_html = get(ROOT)
+    m = re.search(r"(\d+)\s+risultati trovati", re.sub(r"<[^>]+>", " ", root_html))
+    total = int(m.group(1)) if m else None
+    vehicles_in(root_html, seen)
     for page in range(1, 30):
-        if read_page(ROOT + f"?page={page}", seen) == 0:
+        if vehicles_in(get(ROOT + f"?page={page}"), seen) == 0:
             break
     if total and len(seen) != total:
         print(f"ATTENZIONE: il sito dichiara {total} auto, ne ho lette {len(seen)}", file=sys.stderr)
