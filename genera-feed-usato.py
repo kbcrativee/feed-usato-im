@@ -117,6 +117,16 @@ def address(o):
             "region": "Toscana", "postal_code": CAP.get(seller.get("addressLocality", ""), ""), "country": "IT"}
 
 
+# Il sito scrive in molte schede che il prezzo "è legato a finanziamento" o "riservato a fronte di finanziamento o leasing"
+# (verificato il 2026-11-05: 53 auto su 68). Quelle auto non possono mostrare quel prezzo come prezzo libero in un annuncio.
+PREZZO_VINCOLATO = re.compile(r"(prezz\w*[^.]{0,80}(legat\w*|riservat\w*|vincolat\w*|subordinat\w*)[^.]{0,60}(finan\w*|leasing))"
+                              r"|((legat\w*|riservat\w*)[^.]{0,30}(finan\w*|leasing))", re.I)
+
+
+def prezzo_vincolato(o):
+    return bool(PREZZO_VINCOLATO.search(html.unescape(o.get("description", ""))))
+
+
 def fascia(price):
     """Fascia di prezzo (decisa il 2026-11-05 dalle vendite usato: 74% sotto i 20.000 €, quasi nulla oltre i 40.000 €)."""
     p = int(price)
@@ -179,6 +189,7 @@ def row(o):
         # Etichette per creare gli insiemi di prodotti in Meta (il filtro per prezzo non esiste nei cataloghi veicoli)
         "custom_label_0": fascia(price),
         "custom_label_1": "JLR" if make in ("Land Rover", "Jaguar") else "altre marche",
+        "custom_label_2": "prezzo con finanziamento" if prezzo_vincolato(o) else "prezzo libero",
     }
 
 
