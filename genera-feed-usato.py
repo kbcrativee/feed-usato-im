@@ -163,6 +163,11 @@ def row(o):
     title = dedupe_words(html.unescape(o["name"]).replace("…", "").strip())
     km = (o.get("mileageFromOdometer") or {}).get("value", "")
     year = o.get("vehicleModelDate", "")
+    # vehicleModelDate e' l'anno del modello, non l'immatricolazione (MG ZS: modello 2022, immatricolata ott. 2023, titolo 2023):
+    # se il titolo finisce con un anno, vale quello (verificato il 6/11 sulle schede del sito).
+    m_anno = re.search(r"(?<!\d)((?:19|20)\d\d)$", title)
+    if m_anno:
+        year = m_anno.group(1)
     desc = f"{title}. {int(km):,} km".replace(",", ".") if km != "" else title
     desc += f", {o.get('fuelType', '')}, cambio {str(o.get('vehicleTransmission', '')).lower()}, {address(o)['city']}. Pronta consegna: scopri la scheda completa sul sito."
     return {
